@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { parseLevel, resolveLang, loadBrand, slugify } from '../src/config.js';
 import { parseUnitOutput, formatOutput, parseJson, normalizePlan } from '../src/prompts.js';
-import { esc, compile, unitTestDocument } from '../src/latex.js';
+import { esc, compile, unitTestDocument, workbookDocument } from '../src/latex.js';
 
 const fixture = (f) => readFile(new URL(`./fixtures/${f}`, import.meta.url), 'utf8');
 
@@ -71,4 +71,19 @@ test('strips model-added numbering from titles', () => {
   assert.equal(plan.units[0].lessons[0].title, 'Mitades');
   const u = parseUnitOutput(formatOutput({ latex: '\\wbunit{Unidad 1: Partes}{x}\n\\section{Lección 1: Repartos}', answers: 'a' }));
   assert.equal(u.latex, '\\wbunit{Partes}{x}\n\\section{Repartos}');
+});
+
+test('full workbook (cover, contents, answers) compiles with and without a logo', async () => {
+  const unit = { latex: await fixture('unit.tex'), answers: await fixture('answers.tex') };
+  const plan = { title: 'Fracciones', subtitle: 'Partes de un entero', intro: { title: 'Hola', text: 'Bienvenida.' }, units: [{ title: 'Uno' }] };
+  const logoDir = path.join(tmpdir(), 'wb-test-logo');
+  await mkdir(logoDir, { recursive: true });
+  const logoFile = path.join(logoDir, 'logo.png');
+  // PNG de 1×1
+  await writeFile(logoFile, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
+  for (const logo of [null, logoFile]) {
+    const res = await compile(workbookDocument({ brand: { ...brand, logo }, lang, plan, units: [unit], levelLabel: 'Nivel 1 de 3' }),
+      path.join(tmpdir(), `wb-test-full-${logo ? 'logo' : 'nologo'}`), { name: 'w', passes: 2 });
+    assert.equal(res.ok, true, res.errors);
+  }
 });

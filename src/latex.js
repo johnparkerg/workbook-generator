@@ -33,7 +33,7 @@ export function preamble({ brand, lang }) {
 \\definecolor{wbpaper}{HTML}{${hex(brand.colors.paper)}}
 \\newcommand{\\wbBrandName}{${esc(brand.name)}}
 \\newcommand{\\wbFontDir}{${FONTS}/}
-\\newcommand{\\wbLogo}{${logo}}
+\\def\\wbLogo{${logo}}
 ${labels}
 \\usepackage{wb}
 `;

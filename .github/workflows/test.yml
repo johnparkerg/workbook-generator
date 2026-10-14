@@ -1,0 +1,23 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install LaTeX (cached)
+        uses: awalsh128/cache-apt-pkgs-action@v1.4.3
+        with:
+          packages: texlive-xetex texlive-latex-extra texlive-pictures texlive-lang-spanish poppler-utils
+          version: 1
+      - run: npm test
