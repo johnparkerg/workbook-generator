@@ -33,10 +33,14 @@ Options:
   --audience <text>    Age/grade, e.g. "3.º de primaria" (default: inferred by the model)
   --notes <text>       Extra instructions for the author model
   --source <file>      Teacher material to base the book on: PDF or image (repeatable)
-  --model <id>         OpenRouter model (default: $OPENROUTER_MODEL or ${DEFAULT_MODEL})
+  --model <id>         Writer model: claude-* goes to Anthropic (ANTHROPIC_API_KEY), anything else to
+                       OpenRouter (default: $WORKBOOK_MODEL, $OPENROUTER_MODEL or ${DEFAULT_MODEL})
   --max-tokens <n>     Starting output-token budget per call (doubles if cut off; default 32000)
   --concurrency <n>    Units written in parallel                     (default: 2)
   --no-review          Skip the math/answer-key review pass
+  --no-visual-check    Skip looking at the rendered pages (needs poppler's pdftoppm)
+  --check-model <id>   Model that looks at the rendered pages (default: $WORKBOOK_CHECK_MODEL or --model);
+                       a cheap one works well, e.g. claude-haiku-5-5
   --out <dir>          Output folder (default: output/<subject>-<level>-<lang>)
   --plan-only          Only create plan.json, to review/edit it before writing units
   --plan-feedback <text>  Revise the saved plan.json following teacher feedback
@@ -60,8 +64,8 @@ const { values: v } = parseArgs({
     logo: { type: 'string' }, primary: { type: 'string' }, secondary: { type: 'string' },
     accent: { type: 'string' }, paper: { type: 'string' },
     units: { type: 'string', default: '4' }, audience: { type: 'string' }, notes: { type: 'string' }, source: { type: 'string', multiple: true, default: [] },
-    model: { type: 'string' }, 'max-tokens': { type: 'string', default: '32000' },
-    concurrency: { type: 'string', default: '2' }, review: { type: 'boolean', default: true },
+    model: { type: 'string' }, 'check-model': { type: 'string' }, 'max-tokens': { type: 'string', default: '32000' },
+    concurrency: { type: 'string', default: '2' }, review: { type: 'boolean', default: true }, 'visual-check': { type: 'boolean', default: true },
     out: { type: 'string' }, 'plan-only': { type: 'boolean' }, 'plan-feedback': { type: 'string' }, redo: { type: 'string', default: '' },
     revise: { type: 'string', multiple: true, default: [] },
     force: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
@@ -97,10 +101,12 @@ try {
     subject: v.subject, level, lang, brand, units,
     audience: v.audience, notes: v.notes,
     sourceFiles: v.source.map((f) => path.resolve(f)),
-    model: v.model || process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
+    model: v.model || process.env.WORKBOOK_MODEL || process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
+    checkModel: v['check-model'] || process.env.WORKBOOK_CHECK_MODEL,
     maxTokens: Number(v['max-tokens']),
     concurrency: Math.max(1, Number(v.concurrency)),
     review: v.review,
+    visualCheck: v['visual-check'],
     runDir: path.resolve(v.out || path.join(ROOT, 'output', slug)),
     planOnly: v['plan-only'],
     planFeedback: v['plan-feedback'],

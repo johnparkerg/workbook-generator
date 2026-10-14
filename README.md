@@ -1,6 +1,6 @@
 # Workbook Generator
 
-Turn **a subject, a level, a language and a brand** into a print-ready student workbook (PDF), written by an LLM through [OpenRouter](https://openrouter.ai) and typeset with **LaTeX**, so math always renders correctly.
+Turn **a subject, a level, a language and a brand** into a print-ready student workbook (PDF), written by Claude (directly via the Anthropic API, or any model via [OpenRouter](https://openrouter.ai)) and typeset with **LaTeX**, so math always renders correctly.
 
 ```sh
 node src/cli.js --subject "Matemáticas / Fracciones" --level "1 of 3" --lang es_MX --brand miss-merab
@@ -37,11 +37,12 @@ node src/cli.js --subject "Matemáticas / Fracciones" --level "1 of 3" --lang es
 - **Fraction visuals out of the box.** Bars, circles, grids and number lines drawn from one-line macros (`\wbfracbar{3}{4}`), so diagrams are accurate rather than hand-drawn by the model.
 - **Grounded pedagogy.** Prompts require established, documented teaching approaches (concrete → pictorial → abstract, fraction strips, number lines, equal-sharing problems, bar models, worked examples with faded practice). No invented methods or mnemonics.
 - **Self-checking.** Every unit gets a second "editor" pass that checks the math and the answer key, and every unit must compile on its own. LaTeX errors are fed back to the model to fix automatically.
+- **Looks at its own pages.** Each compiled unit is rendered and a model checks the page images for drawings that contradict their text (wrong shading, "unequal parts" drawn equal, misplaced number-line marks), overlaps and missing answer space, then makes one targeted fix.
 - **Resumable and editable.** The plan and each unit are saved as plain files. Re-running reuses them, so you can hand-edit anything and rebuild in seconds without paying for model calls again.
 - **Built from the teacher's own material.** `--source worksheet.pdf --source photo.jpg` reads PDFs (text, or scanned pages via the model's vision) and photos, and the plan and units follow that material's scope, sequence, notation and difficulty.
 - **Teacher feedback loop.** `--revise "2: make it easier"` rewrites just that unit according to plain-language feedback (about a cent and 30 seconds), then recompiles.
 - **Branding.** Name, colours and logo via a small JSON file or flags.
-- **Any OpenRouter model.** Defaults to `typesafe/jev-router`; switch with `--model` or an env var.
+- **Pick the models.** `claude-*` models go straight to Anthropic (with prompt caching and server-side refusal fallbacks); anything else goes to OpenRouter. The writer and the page checker are set separately.
 
 ## Quick start
 
@@ -50,7 +51,7 @@ node src/cli.js --subject "Matemáticas / Fracciones" --level "1 of 3" --lang es
 - Node.js 22+
 - A TeX distribution with `xelatex` (TeX Live / MacTeX / BasicTeX)
 - `poppler` (`pdftotext`, `pdftoppm`) only if you pass PDF `--source` files
-- An [OpenRouter API key](https://openrouter.ai/keys)
+- An [Anthropic API key](https://console.anthropic.com/) (for `claude-*` models) and/or an [OpenRouter API key](https://openrouter.ai/keys)
 
 **1. Install the LaTeX packages the template uses.** Full TeX Live / MacTeX already has them. On Debian/Ubuntu: `apt install texlive-xetex texlive-latex-extra texlive-pictures texlive-lang-spanish`. On **BasicTeX**, install them in user mode (no `sudo` needed):
 
@@ -64,7 +65,8 @@ tlmgr --usermode install tcolorbox environ trimspaces pdfcol tikzfill enumitem t
 ```sh
 git clone https://github.com/johnparkerg/workbook-generator.git
 cd workbook-generator
-cp .env.example .env    # then put your OPENROUTER_API_KEY in .env
+npm install
+cp .env.example .env    # then add ANTHROPIC_API_KEY (and/or OPENROUTER_API_KEY)
 ```
 
 **3. Generate.**
@@ -96,14 +98,19 @@ The PDF lands in `output/<subject>-<level>-<lang>/<same>.pdf`. There are no npm 
             │      ▲                         offending source lines go back to the
             │      └── fix (≤3×) ◄──┘        model to fix
             ▼
-   5. ASSEMBLE ──────────► <slug>.pdf        cover, contents, units, answers
+   5. LOOK ──────────────────────────────    render the pages; a model checks the images
+            │                                for drawing/text mismatches, overlaps,
+            │                                missing answer space → one targeted fix
+            ▼
+   6. ASSEMBLE ──────────► <slug>.pdf        cover, contents, units, answers
 ```
 
 1. **Plan.** The model sketches how the whole subject divides across the N books of the series, sets the audience (it infers age and grade unless you pass `--audience`; for `es_MX` it aligns with the SEP curriculum), and plans this book's units and lessons. Each lesson names the documented teaching approach and visual models it will use.
 2. **Write.** One call per unit (two units in parallel by default) produces the unit LaTeX and its answer key in a strict two-block format, restricted to the commands in [`templates/wb.sty`](templates/wb.sty).
 3. **Review.** A second call acts as a meticulous editor and returns either `NO_CHANGES` or a fully corrected unit. Skip it with `--no-review`.
 4. **Compile check.** Each unit is compiled by itself. If `xelatex` fails, the error message plus the surrounding source lines are sent back to the model, up to 3 times.
-5. **Assemble.** Cover, name line, welcome page, table of contents, all units, and a two-column answer key, compiled until LaTeX stops asking for reruns.
+5. **Look.** The compiled unit is rendered at low resolution and sent, 8 pages per call, to the check model with a strict "report only real defects" prompt. If it finds any, one revision call fixes exactly those and the unit is recompiled. Skip with `--no-visual-check`.
+6. **Assemble.** Cover, name line, welcome page, table of contents, all units, and a two-column answer key, compiled until LaTeX stops asking for reruns.
 
 Reasoning models spend output tokens on thinking. If a reply gets cut off, the call is retried automatically with double the token budget (up to 128k). Model usage and cost are printed at the end of each run.
 
@@ -125,7 +132,9 @@ node src/cli.js --subject <text> [options]
 | `--audience <text>` | inferred | Age/grade, e.g. `"3.º de primaria"` |
 | `--notes <text>` | | Extra instructions for the author model |
 | `--source <file>` | | Teacher material to base the book on: PDF, PNG, JPG or WEBP (repeatable). Read once into `sources.md` |
-| `--model <id>` | `$OPENROUTER_MODEL` or `typesafe/jev-router` | Any OpenRouter model id |
+| `--model <id>` | `$WORKBOOK_MODEL`, `$OPENROUTER_MODEL` or `typesafe/jev-router` | Writer model. `claude-*` → Anthropic API; anything else → OpenRouter |
+| `--check-model <id>` | `$WORKBOOK_CHECK_MODEL` or `--model` | Model that looks at the rendered pages; a cheap one works well (`claude-haiku-5-5`) |
+| `--no-visual-check` | | Skip the page check |
 | `--max-tokens <n>` | `32000` | Starting output-token budget per call (doubles if cut off) |
 | `--concurrency <n>` | `2` | Units written in parallel |
 | `--no-review` | | Skip the editor pass (cheaper, less safe) |
@@ -139,8 +148,10 @@ node src/cli.js --subject <text> [options]
 Environment (`.env`):
 
 ```sh
+ANTHROPIC_API_KEY=sk-ant-...
 OPENROUTER_API_KEY=sk-or-...
-OPENROUTER_MODEL=typesafe/jev-router   # optional default model
+WORKBOOK_MODEL=claude-sonnet-5-5
+WORKBOOK_CHECK_MODEL=claude-haiku-5-5
 ```
 
 ## Editing and re-running
@@ -210,7 +221,17 @@ Interface labels (Unit, Practice, Answers, etc.) live in `src/config.js`. To add
 
 ## Choosing a model
 
-Any [OpenRouter model](https://openrouter.ai/models) works. The model must follow a strict output format and write valid LaTeX; the compile-and-fix loop catches most slips. For reference, the Fracciones example (plan + 4 units + 4 reviews) with `typesafe/jev-router` took about 13 minutes and cost about **$0.30**.
+Measured on the same 1-unit request (plan + one ~18-page unit + review + page check):
+
+| Writer / page check | Cost | Time | Notes |
+|---|---|---|---|
+| `claude-sonnet-5-5` / `claude-haiku-5-5` (default) | **$0.36** | 3.5 min | Uses the built-in fraction visuals heavily; page check found nothing to fix |
+| `claude-opus-5-5` / `claude-opus-5-5` | $1.73 | 9.5 min | More hand-drawn TikZ; page check found and fixed 9 real drawing defects |
+| `typesafe/jev-router` (OpenRouter), no page check | ~$0.10 | ~4 min | The router often picks Opus for long agentic work; fine for single calls |
+
+So a 4-unit book costs roughly **$1.50** with the defaults. Output tokens dominate the bill, which is why the writer model matters most.
+
+There is also an **agent mode** (`agent/`): Claude Code authors the book with the `wb` commands, inspecting its own pages as it goes. Its quality is excellent but it re-reads a growing context every turn; measured at ~$2.50 per unit, so it is not the default.
 
 ## The LaTeX template
 
@@ -239,7 +260,10 @@ src/
   cli.js          argument parsing, entry point
   generate.js     pipeline: plan → write → review → compile-check → assemble
   prompts.js      all prompts, the LaTeX vocabulary, output parsing/normalising
-  openrouter.js   OpenRouter client (retries, token-budget doubling, usage/cost)
+  openrouter.js   chat(): OpenRouter, or Anthropic for claude-* (retries, budget doubling, usage/cost)
+  anthropic.js    Anthropic Messages API via the official SDK (caching, refusal fallbacks, pricing)
+  visual.js       render a unit's pages and have a model look for defects
+  agent.js        `wb` commands for agent mode (guide, check, build, render, progreso)
   latex.js        document assembly, xelatex runner, log → readable errors
   sources.js      teacher material (PDF text / vision transcription) → sources.md
   config.js       languages, labels, brands, level parsing, .env loading
@@ -260,7 +284,7 @@ Covers level/language/brand parsing, LaTeX escaping, model-output parsing and no
 
 ## Known limitations
 
-- **Model-drawn diagrams aren't visually verified.** The review pass checks the text and LaTeX, not the rendered picture, so a custom TikZ figure can contradict its caption (e.g. "unequal parts" drawn nearly equal). The built-in fraction macros are always accurate. Review the PDF before printing.
+- **The page check is a second pair of eyes, not a guarantee.** It catches most drawing/text mismatches, but review the PDF before printing.
 - **Proofread before classroom use.** The review pass catches most errors, but this is generated content.
 - **Unbreakable boxes** keep examples and practice items whole, which can leave white space at the bottom of some pages.
 - **Paper size** is US Letter (`templates/wb.sty`, `\geometry{letterpaper…}`).

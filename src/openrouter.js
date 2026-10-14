@@ -1,3 +1,5 @@
+import { isAnthropicModel, anthropicCall, costOf } from './anthropic.js';
+
 const URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 export const usage = { calls: 0, promptTokens: 0, completionTokens: 0, cost: 0 };
@@ -11,6 +13,7 @@ const MAX_TOKENS_CAP = 128000;
  * Devuelve el texto de la respuesta.
  */
 export async function chat({ model, messages, maxTokens = 32000, maxTokensCap = MAX_TOKENS_CAP, temperature = 0.4, reasoning, label = 'llm' }) {
+  if (isAnthropicModel(model)) return chatAnthropic({ model, messages, maxTokens, maxTokensCap, reasoning, label });
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error('OPENROUTER_API_KEY is missing. Add it to workbook-generator/.env');
 
@@ -58,4 +61,20 @@ export async function chat({ model, messages, maxTokens = 32000, maxTokensCap = 
     }
   }
   throw lastErr;
+}
+
+// Modelos claude-* van directo a Anthropic (ANTHROPIC_API_KEY). Mismo contrato que chat().
+async function chatAnthropic({ model, messages, maxTokens, maxTokensCap, reasoning, label }) {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is missing (needed for claude-* models)');
+  for (;;) {
+    const r = await anthropicCall({ model, messages, maxTokens, effort: reasoning?.effort || 'medium' });
+    usage.calls++;
+    usage.promptTokens += (r.usage.input_tokens || 0) + (r.usage.cache_read_input_tokens || 0) + (r.usage.cache_creation_input_tokens || 0);
+    usage.completionTokens += r.usage.output_tokens || 0;
+    usage.cost += costOf(r.model, r.usage);
+    if (r.stopReason !== 'max_tokens') return r.text;
+    if (maxTokens >= maxTokensCap) throw new Error(`response cut off at max_tokens=${maxTokens}`);
+    console.warn(`  [${label}] response cut off at ${maxTokens} tokens — retrying with ${Math.min(maxTokens * 2, maxTokensCap)}`);
+    maxTokens = Math.min(maxTokens * 2, maxTokensCap);
+  }
 }

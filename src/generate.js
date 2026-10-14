@@ -5,6 +5,7 @@ import { chat, usage } from './openrouter.js';
 import { planMessages, revisePlanMessages, unitMessages, reviewMessages, fixMessages, reviseMessages, parseUnitOutput, formatOutput, parseJson, normalizePlan } from './prompts.js';
 import { compile, unitTestDocument, workbookDocument } from './latex.js';
 import { digestSources } from './sources.js';
+import { visualCheck, issuesAsFeedback } from './visual.js';
 
 const MAX_FIXES = 3;
 
@@ -136,9 +137,38 @@ async function getUnit(opts, plan, i) {
   }
 
   unit = await compileChecked(opts, n, unit);
+  unit = await lookAndFix(opts, plan, i, unit);
   await writeFile(file, formatOutput(unit));  // el borrador se queda, para comparar lo que cambió la revisión
   log(`[${tag}] ✓ compiled and saved`);
   return unit;
+}
+
+/** Mira las páginas renderizadas; si hay defectos, una sola corrección dirigida y se recompila. */
+async function lookAndFix(opts, plan, i, unit) {
+  if (!opts.visualCheck) return unit;
+  const n = i + 1;
+  const tag = `unit ${n}`;
+  log(`[${tag}] looking at the pages…`);
+  let issues;
+  try {
+    issues = await visualCheck({ pdf: path.join(opts.runDir, 'build', `unit-${n}`, `unit-${n}.pdf`), lang: opts.lang, model: opts.checkModel || opts.model, label: tag });
+  } catch (err) {
+    log(`[${tag}] visual check failed (${err.message.split('\n')[0]}); keeping the unit`);
+    return unit;
+  }
+  if (!issues.length) {
+    log(`[${tag}] visual check: no issues`);
+    return unit;
+  }
+  log(`[${tag}] visual check: ${issues.length} issue(s), fixing`);
+  for (const x of issues) log(`    p.${x.page}: ${x.problem}`);
+  try {
+    const fixed = await askForUnit(opts, reviseMessages({ output: formatOutput(unit), feedback: issuesAsFeedback(issues), lang: opts.lang, plan, index: i }), `${tag} visual fix`);
+    return await compileChecked(opts, n, fixed);
+  } catch (err) {
+    log(`[${tag}] visual fix failed (${err.message.split('\n')[0]}); keeping the unit`);
+    return unit;
+  }
 }
 
 /** Reescribe una unidad ya guardada según la retroalimentación del maestro. */
@@ -150,6 +180,7 @@ async function reviseUnit(opts, plan, i, file, feedback) {
   log(`[${tag}] revising: “${feedback}”`);
   let unit = await askForUnit(opts, reviseMessages({ output: current, feedback, lang: opts.lang, plan, index: i, sources: opts.sources }), `${tag} revise`);
   unit = await compileChecked(opts, n, unit);
+  unit = await lookAndFix(opts, plan, i, unit);
   await writeFile(file, formatOutput(unit));
   log(`[${tag}] ✓ revised and saved`);
   return unit;
