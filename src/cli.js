@@ -26,7 +26,9 @@ Options:
   --no-review          Skip the math/answer-key review pass
   --out <dir>          Output folder (default: output/<subject>-<level>-<lang>)
   --plan-only          Only create plan.json, to review/edit it before writing units
-  --redo <list>        Rewrite these units even if saved, e.g. --redo 2,4
+  --redo <list>        Rewrite these units from scratch, e.g. --redo 2,4
+  --revise "<n>: <feedback>"   Revise a saved unit following teacher feedback
+                       (repeatable), e.g. --revise "2: más ejemplos con dinero"
   --force              Ignore everything saved and start over
   -h, --help
 
@@ -44,6 +46,7 @@ const { values: v } = parseArgs({
     model: { type: 'string' }, 'max-tokens': { type: 'string', default: '32000' },
     concurrency: { type: 'string', default: '2' }, review: { type: 'boolean', default: true },
     out: { type: 'string' }, 'plan-only': { type: 'boolean' }, redo: { type: 'string', default: '' },
+    revise: { type: 'string', multiple: true, default: [] },
     force: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
   },
 });
@@ -51,6 +54,16 @@ const { values: v } = parseArgs({
 if (v.help || !v.subject) {
   console.log(HELP);
   process.exit(v.help ? 0 : 1);
+}
+
+function parseRevise(list) {
+  const out = {};
+  for (const item of list) {
+    const m = item.match(/^\s*(\d+)\s*[:=]\s*([\s\S]+)$/);
+    if (!m) throw new Error(`--revise must look like "2: make it easier" (got "${item}")`);
+    out[Number(m[1])] = m[2].trim();
+  }
+  return out;
 }
 
 try {
@@ -73,6 +86,7 @@ try {
     runDir: path.resolve(v.out || path.join(ROOT, 'output', slug)),
     planOnly: v['plan-only'],
     redo: v.redo.split(',').filter(Boolean).map(Number),
+    revise: parseRevise(v.revise),
     force: v.force,
   });
 } catch (err) {

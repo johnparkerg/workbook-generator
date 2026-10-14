@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { chat, usage } from './openrouter.js';
-import { planMessages, unitMessages, reviewMessages, fixMessages, parseUnitOutput, formatOutput, parseJson, normalizePlan } from './prompts.js';
+import { planMessages, unitMessages, reviewMessages, fixMessages, reviseMessages, parseUnitOutput, formatOutput, parseJson, normalizePlan } from './prompts.js';
 import { compile, unitTestDocument, workbookDocument } from './latex.js';
 
 const MAX_FIXES = 3;
@@ -87,6 +87,8 @@ async function getUnit(opts, plan, i) {
   const n = i + 1;
   const file = path.join(opts.runDir, 'units', `unit-${n}.tex`);
   const tag = `unit ${n}`;
+  const feedback = opts.revise?.[n];
+  if (existsSync(file) && feedback) return reviseUnit(opts, plan, i, file, feedback);
   if (existsSync(file) && !opts.force && !opts.redo.includes(n)) {
     log(`[${tag}] using saved ${path.relative(opts.runDir, file)}`);
     return parseUnitOutput(await readFile(file, 'utf8'));
@@ -119,11 +121,33 @@ async function getUnit(opts, plan, i) {
     }
   }
 
-  // Compila la unidad sola; si falla, le pasamos el error al modelo para que lo arregle.
+  unit = await compileChecked(opts, n, unit);
+  await writeFile(file, formatOutput(unit));  // el borrador se queda, para comparar lo que cambió la revisión
+  log(`[${tag}] ✓ compiled and saved`);
+  return unit;
+}
+
+/** Reescribe una unidad ya guardada según la retroalimentación del maestro. */
+async function reviseUnit(opts, plan, i, file, feedback) {
+  const n = i + 1;
+  const tag = `unit ${n}`;
+  const current = await readFile(file, 'utf8');
+  await writeFile(path.join(opts.runDir, 'units', `unit-${n}.before-revision.tex`), current);
+  log(`[${tag}] revising: “${feedback}”`);
+  let unit = await askForUnit(opts, reviseMessages({ output: current, feedback, lang: opts.lang, plan, index: i }), `${tag} revise`);
+  unit = await compileChecked(opts, n, unit);
+  await writeFile(file, formatOutput(unit));
+  log(`[${tag}] ✓ revised and saved`);
+  return unit;
+}
+
+// Compila la unidad sola; si falla, le pasamos el error al modelo para que lo arregle.
+async function compileChecked(opts, n, unit) {
+  const tag = `unit ${n}`;
   const buildDir = path.join(opts.runDir, 'build', `unit-${n}`);
   for (let attempt = 0; ; attempt++) {
     const res = await compile(unitTestDocument({ brand: opts.brand, lang: opts.lang, unitNumber: n, unitLatex: unit.latex, answersLatex: unit.answers }), buildDir, { name: `unit-${n}`, passes: 2 });
-    if (res.ok) break;
+    if (res.ok) return unit;
     if (attempt === MAX_FIXES) {
       await writeFile(path.join(opts.runDir, 'units', `unit-${n}.failed.tex`), formatOutput(unit));
       throw new Error(`[${tag}] still fails to compile after ${MAX_FIXES} fixes. Last errors:\n${res.errors}`);
@@ -131,10 +155,6 @@ async function getUnit(opts, plan, i) {
     log(`[${tag}] LaTeX error, asking the model to fix it (${attempt + 1}/${MAX_FIXES}): ${res.errors.split('\n')[0]}`);
     unit = await askForUnit(opts, fixMessages({ output: formatOutput(unit), errors: res.errors }), `${tag} fix`);
   }
-
-  await writeFile(file, formatOutput(unit));  // el borrador se queda, para comparar lo que cambió la revisión
-  log(`[${tag}] ✓ compiled and saved`);
-  return unit;
 }
 
 async function askForUnit(opts, messages, label) {

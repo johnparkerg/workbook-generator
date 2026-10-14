@@ -38,6 +38,7 @@ node src/cli.js --subject "Matemáticas / Fracciones" --level "1 of 3" --lang es
 - **Grounded pedagogy.** Prompts require established, documented teaching approaches (concrete → pictorial → abstract, fraction strips, number lines, equal-sharing problems, bar models, worked examples with faded practice). No invented methods or mnemonics.
 - **Self-checking.** Every unit gets a second "editor" pass that checks the math and the answer key, and every unit must compile on its own. LaTeX errors are fed back to the model to fix automatically.
 - **Resumable and editable.** The plan and each unit are saved as plain files. Re-running reuses them, so you can hand-edit anything and rebuild in seconds without paying for model calls again.
+- **Teacher feedback loop.** `--revise "2: make it easier"` rewrites just that unit according to plain-language feedback (about a cent and 30 seconds), then recompiles.
 - **Branding.** Name, colours and logo via a small JSON file or flags.
 - **Any OpenRouter model.** Defaults to `typesafe/jev-router`; switch with `--model` or an env var.
 
@@ -49,11 +50,11 @@ node src/cli.js --subject "Matemáticas / Fracciones" --level "1 of 3" --lang es
 - A TeX distribution with `xelatex` (TeX Live / MacTeX / BasicTeX)
 - An [OpenRouter API key](https://openrouter.ai/keys)
 
-**1. Install the LaTeX packages the template uses.** Full TeX Live / MacTeX already has them. On **BasicTeX**, install them in user mode (no `sudo` needed):
+**1. Install the LaTeX packages the template uses.** Full TeX Live / MacTeX already has them. On Debian/Ubuntu: `apt install texlive-xetex texlive-latex-extra texlive-pictures texlive-lang-spanish`. On **BasicTeX**, install them in user mode (no `sudo` needed):
 
 ```sh
 tlmgr init-usertree
-tlmgr --usermode install tcolorbox environ trimspaces pdfcol tikzfill enumitem titlesec needspace atkinson
+tlmgr --usermode install tcolorbox environ trimspaces pdfcol tikzfill enumitem titlesec needspace
 ```
 
 **2. Configure your key.**
@@ -127,7 +128,8 @@ node src/cli.js --subject <text> [options]
 | `--no-review` | | Skip the editor pass (cheaper, less safe) |
 | `--out <dir>` | `output/<slug>` | Output folder |
 | `--plan-only` | | Stop after `plan.json` so you can review or edit it |
-| `--redo <list>` | | Rewrite these units even if saved, e.g. `--redo 2,4` |
+| `--redo <list>` | | Rewrite these units from scratch, e.g. `--redo 2,4` |
+| `--revise "<n>: <feedback>"` | | Revise a saved unit following teacher feedback, keeping everything else (repeatable) |
 | `--force` | | Ignore everything saved and start over |
 
 Environment (`.env`):
@@ -160,7 +162,8 @@ $EDITOR output/.../plan.json      # 2. tweak units/lessons
 node src/cli.js ...               # 3. write the units
 $EDITOR output/.../units/unit-2.tex   # 4. fix anything by hand
 node src/cli.js ...               # 5. rebuild the PDF in seconds (no model calls)
-node src/cli.js ... --redo 3      # or have the model rewrite one unit
+node src/cli.js ... --revise "3: más ejemplos con dinero"   # targeted change to one unit (~$0.01)
+node src/cli.js ... --redo 3      # or rewrite a unit from scratch
 ```
 
 If you edit `plan.json` after units exist, use `--redo` for the affected units, since saved units are not rewritten automatically.
@@ -187,7 +190,7 @@ If you edit `plan.json` after units exist, use `--redo` for the affected units, 
 - **accent**: highlights, key-idea boxes, shaded parts of fraction diagrams
 - **paper**: soft backgrounds
 
-`logo` is resolved relative to the JSON file. Typefaces are [Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/) for body text (designed for legibility; installed via the `atkinson` TeX package) and [Big Shoulders Display](https://github.com/xotypeco/big_shoulders) for headings (bundled in `fonts/`).
+`logo` is resolved relative to the JSON file. Typefaces are [Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/) for body text (designed for legibility) and [Big Shoulders Display](https://github.com/xotypeco/big_shoulders) for headings. Both are bundled in `fonts/` under the SIL Open Font License, so no TeX font packages are needed.
 
 ## Languages
 
@@ -236,7 +239,7 @@ src/
   config.js       languages, labels, brands, level parsing, .env loading
 templates/wb.sty  the workbook style (layout, boxes, visuals, cover)
 brands/           brand JSON files
-fonts/            bundled heading font (SIL OFL)
+fonts/            bundled body and heading fonts (SIL OFL)
 examples/         a complete generated example (plan, units, PDF)
 test/             unit tests + a hand-written fixture unit
 ```
@@ -258,4 +261,4 @@ Covers level/language/brand parsing, LaTeX escaping, model-output parsing and no
 
 ## License
 
-Code: [MIT](LICENSE). Big Shoulders Display font: [SIL Open Font License 1.1](fonts/OFL.txt). The example workbook in `examples/` was generated with this tool for the "Miss Merab" brand.
+Code: [MIT](LICENSE). Fonts: SIL Open Font License 1.1 ([Atkinson Hyperlegible Next](fonts/OFL-Atkinson.txt), [Big Shoulders Display](fonts/OFL-BigShoulders.txt)). The example workbook in `examples/` was generated with this tool for the "Miss Merab" brand.

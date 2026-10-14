@@ -155,6 +155,28 @@ ${output}`,
   ];
 }
 
+export function reviseMessages({ output, feedback, lang, plan, index }) {
+  const unit = plan.units[index];
+  return [
+    {
+      role: 'system',
+      content: `You are an expert textbook author revising one unit of a student workbook (audience: age ${plan.audience?.age}, ${plan.audience?.grade}; language ${lang.name}) according to the teacher's feedback.\n\n${PEDAGOGY}\n\n${LATEX_VOCAB}\n\n${OUTPUT_FORMAT}`,
+    },
+    {
+      role: 'user',
+      content: `The teacher reviewed unit ${index + 1} ("${unit.title}") and asked for this change:
+
+"""${feedback}"""
+
+Apply the change thoroughly but keep everything the teacher did not ask to change. Keep the same structure rules (one \\wbunit, lessons as \\section, wbpractice sets, one wbreview at the end) and update the answer key so it matches every item exactly. Double-check all math.
+
+Return the full revised output in the two-block format.
+
+${output}`,
+    },
+  ];
+}
+
 export function fixMessages({ output, errors }) {
   return [
     {
