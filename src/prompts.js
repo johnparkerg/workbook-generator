@@ -8,7 +8,19 @@ const PEDAGOGY = `Pedagogy rules (strict):
 - Age-appropriate language: short sentences, concrete everyday contexts (food, sharing, sports, school), friendly second person, no condescension.
 - Mathematical accuracy is non-negotiable. Every number, example and answer must be correct.`;
 
-export function planMessages({ subject, level, lang, units, audience, notes }) {
+/** El material del maestro, si lo hay, va al final del mensaje del usuario. */
+function sourceBlock(sources) {
+  if (!sources) return '';
+  return `
+
+The teacher provided her own source material (transcribed below). Base the workbook on it: follow its scope, sequence, terminology, notation, methods and difficulty, and reuse the kinds of examples and exercises it uses. Write new explanations and new exercises in the same spirit instead of copying long passages verbatim. If the material covers more than this book, use only the part that fits.
+
+<teacher_material>
+${sources}
+</teacher_material>`;
+}
+
+export function planMessages({ subject, level, lang, units, audience, notes, sources }) {
   const series = level.of
     ? `This is book ${level.level} of a ${level.of}-book series on this subject. First sketch how the whole subject splits across the ${level.of} books (from introductory to advanced), then plan ONLY the content of book ${level.level}, so it neither repeats an earlier book nor jumps ahead to a later one.`
     : `Difficulty level: ${level.level}.`;
@@ -47,7 +59,28 @@ Respond with ONLY a JSON object, no prose, in this exact shape:
       "review_focus": "what the unit review assesses (English)"
     }
   ]
-}`,
+}${sourceBlock(sources)}`,
+    },
+  ];
+}
+
+export function revisePlanMessages({ plan, feedback, lang, units, sources }) {
+  return [
+    {
+      role: 'system',
+      content: `You are an expert curriculum designer revising the outline of a student workbook according to the teacher's feedback.\n\n${PEDAGOGY}`,
+    },
+    {
+      role: 'user',
+      content: `Current plan (JSON):
+${JSON.stringify(plan, null, 2)}
+
+The teacher asked for these changes:
+"""${feedback}"""
+
+Apply the changes and keep everything else. Student-facing strings stay in ${lang.name}. Unit and lesson titles must not include "Unit N:" / "Lesson N:". The teacher originally asked for ${units} units; follow her feedback if it changes that.
+
+Respond with ONLY the full revised JSON object, in exactly the same shape as the current plan.${sourceBlock(sources)}`,
     },
   ];
 }
@@ -97,7 +130,7 @@ The answer key covers EVERY practice item and EVERY review item, in order, group
 \begin{enumerate} ... \end{enumerate}
 Answers are short: the result, plus one brief line of reasoning when useful. For open/drawing items describe what a correct answer looks like. The answer key is printed in two narrow columns: keep visuals out of it except small ones (e.g. \wbfracbar[2.5cm]{..}{..}).`;
 
-export function unitMessages({ plan, index, lang, subject, level }) {
+export function unitMessages({ plan, index, lang, subject, level, sources }) {
   const unit = plan.units[index];
   const n = index + 1;
   const context = plan.units
@@ -127,7 +160,7 @@ Requirements:
 - Earlier units of this book may be referenced; do not teach content from later units.
 - End with one wbreview of 6–10 items covering the whole unit.
 - Give every item enough answer space (\\wblines, \\wbblank, \\wbbox, \\wbfracbox).
-- Then the complete answer key. Double-check every answer.`,
+- Then the complete answer key. Double-check every answer.${sourceBlock(sources)}`,
     },
   ];
 }
@@ -155,7 +188,7 @@ ${output}`,
   ];
 }
 
-export function reviseMessages({ output, feedback, lang, plan, index }) {
+export function reviseMessages({ output, feedback, lang, plan, index, sources }) {
   const unit = plan.units[index];
   return [
     {
@@ -172,7 +205,7 @@ Apply the change thoroughly but keep everything the teacher did not ask to chang
 
 Return the full revised output in the two-block format.
 
-${output}`,
+${output}${sourceBlock(sources)}`,
     },
   ];
 }

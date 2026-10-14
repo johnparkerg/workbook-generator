@@ -2,8 +2,9 @@ import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { chat, usage } from './openrouter.js';
-import { planMessages, unitMessages, reviewMessages, fixMessages, reviseMessages, parseUnitOutput, formatOutput, parseJson, normalizePlan } from './prompts.js';
+import { planMessages, revisePlanMessages, unitMessages, reviewMessages, fixMessages, reviseMessages, parseUnitOutput, formatOutput, parseJson, normalizePlan } from './prompts.js';
 import { compile, unitTestDocument, workbookDocument } from './latex.js';
+import { digestSources } from './sources.js';
 
 const MAX_FIXES = 3;
 
@@ -16,10 +17,12 @@ export async function generate(opts) {
   log(`Model: ${model}`);
   log(`Output: ${runDir}\n`);
 
+  opts.sources = await digestSources(opts.sourceFiles || [], { runDir, model, force: opts.force, log });
   const plan = await getPlan(opts);
   printPlan(plan);
   if (opts.planOnly) {
     log(`\nPlan saved to ${path.join(runDir, 'plan.json')} — edit it if you like, then run again without --plan-only.`);
+    logUsage();
     return null;
   }
 
@@ -43,23 +46,33 @@ export async function generate(opts) {
   await writeFile(path.join(runDir, 'workbook.tex'), source);
 
   log(`\n✓ ${finalPdf}`);
-  if (usage.calls) {
-    log(`  ${usage.calls} model calls · ${usage.promptTokens.toLocaleString()} in / ${usage.completionTokens.toLocaleString()} out tokens` +
-      (usage.cost ? ` · $${usage.cost.toFixed(4)}` : ''));
-  }
+  logUsage();
   return finalPdf;
+}
+
+function logUsage() {
+  if (!usage.calls) return;
+  log(`  ${usage.calls} model calls · ${usage.promptTokens.toLocaleString()} in / ${usage.completionTokens.toLocaleString()} out tokens` +
+    (usage.cost ? ` · $${usage.cost.toFixed(4)}` : ''));
 }
 
 async function getPlan(opts) {
   const file = path.join(opts.runDir, 'plan.json');
+  let messages = planMessages(opts);
   if (existsSync(file) && !opts.force) {
-    log('Plan: using saved plan.json');
-    return normalizePlan(JSON.parse(await readFile(file, 'utf8')));
+    const saved = normalizePlan(JSON.parse(await readFile(file, 'utf8')));
+    if (!opts.planFeedback) {
+      log('Plan: using saved plan.json');
+      return saved;
+    }
+    log(`Plan: revising the outline: “${opts.planFeedback}”`);
+    messages = revisePlanMessages({ ...opts, plan: saved, feedback: opts.planFeedback });
+  } else {
+    log('Plan: asking the model for an outline…');
   }
-  log('Plan: asking the model for an outline…');
   let plan;
   for (let attempt = 1; ; attempt++) {
-    const text = await chat({ model: opts.model, messages: planMessages(opts), maxTokens: 8000, label: 'plan' });
+    const text = await chat({ model: opts.model, messages, maxTokens: 16000, label: 'plan' });
     try {
       plan = normalizePlan(parseJson(text));
       if (!Array.isArray(plan.units) || !plan.units.length) throw new Error('plan has no units');
@@ -134,7 +147,7 @@ async function reviseUnit(opts, plan, i, file, feedback) {
   const current = await readFile(file, 'utf8');
   await writeFile(path.join(opts.runDir, 'units', `unit-${n}.before-revision.tex`), current);
   log(`[${tag}] revising: “${feedback}”`);
-  let unit = await askForUnit(opts, reviseMessages({ output: current, feedback, lang: opts.lang, plan, index: i }), `${tag} revise`);
+  let unit = await askForUnit(opts, reviseMessages({ output: current, feedback, lang: opts.lang, plan, index: i, sources: opts.sources }), `${tag} revise`);
   unit = await compileChecked(opts, n, unit);
   await writeFile(file, formatOutput(unit));
   log(`[${tag}] ✓ revised and saved`);

@@ -38,6 +38,7 @@ node src/cli.js --subject "Matemáticas / Fracciones" --level "1 of 3" --lang es
 - **Grounded pedagogy.** Prompts require established, documented teaching approaches (concrete → pictorial → abstract, fraction strips, number lines, equal-sharing problems, bar models, worked examples with faded practice). No invented methods or mnemonics.
 - **Self-checking.** Every unit gets a second "editor" pass that checks the math and the answer key, and every unit must compile on its own. LaTeX errors are fed back to the model to fix automatically.
 - **Resumable and editable.** The plan and each unit are saved as plain files. Re-running reuses them, so you can hand-edit anything and rebuild in seconds without paying for model calls again.
+- **Built from the teacher's own material.** `--source worksheet.pdf --source photo.jpg` reads PDFs (text, or scanned pages via the model's vision) and photos, and the plan and units follow that material's scope, sequence, notation and difficulty.
 - **Teacher feedback loop.** `--revise "2: make it easier"` rewrites just that unit according to plain-language feedback (about a cent and 30 seconds), then recompiles.
 - **Branding.** Name, colours and logo via a small JSON file or flags.
 - **Any OpenRouter model.** Defaults to `typesafe/jev-router`; switch with `--model` or an env var.
@@ -48,6 +49,7 @@ node src/cli.js --subject "Matemáticas / Fracciones" --level "1 of 3" --lang es
 
 - Node.js 22+
 - A TeX distribution with `xelatex` (TeX Live / MacTeX / BasicTeX)
+- `poppler` (`pdftotext`, `pdftoppm`) only if you pass PDF `--source` files
 - An [OpenRouter API key](https://openrouter.ai/keys)
 
 **1. Install the LaTeX packages the template uses.** Full TeX Live / MacTeX already has them. On Debian/Ubuntu: `apt install texlive-xetex texlive-latex-extra texlive-pictures texlive-lang-spanish`. On **BasicTeX**, install them in user mode (no `sudo` needed):
@@ -122,12 +124,14 @@ node src/cli.js --subject <text> [options]
 | `--units <n>` | `4` | Number of units (1–12) |
 | `--audience <text>` | inferred | Age/grade, e.g. `"3.º de primaria"` |
 | `--notes <text>` | | Extra instructions for the author model |
+| `--source <file>` | | Teacher material to base the book on: PDF, PNG, JPG or WEBP (repeatable). Read once into `sources.md` |
 | `--model <id>` | `$OPENROUTER_MODEL` or `typesafe/jev-router` | Any OpenRouter model id |
 | `--max-tokens <n>` | `32000` | Starting output-token budget per call (doubles if cut off) |
 | `--concurrency <n>` | `2` | Units written in parallel |
 | `--no-review` | | Skip the editor pass (cheaper, less safe) |
 | `--out <dir>` | `output/<slug>` | Output folder |
 | `--plan-only` | | Stop after `plan.json` so you can review or edit it |
+| `--plan-feedback <text>` | | Revise the saved `plan.json` following plain-language feedback |
 | `--redo <list>` | | Rewrite these units from scratch, e.g. `--redo 2,4` |
 | `--revise "<n>: <feedback>"` | | Revise a saved unit following teacher feedback, keeping everything else (repeatable) |
 | `--force` | | Ignore everything saved and start over |
@@ -145,6 +149,7 @@ Everything is saved in the run folder:
 
 ```
 output/matematicas-fracciones-1de3-es-mx/
+├── sources.md                # transcription of --source material (reused on re-runs)
 ├── plan.json                 # the outline (edit freely)
 ├── units/
 │   ├── unit-1.draft.tex      # first draft, before review (kept for comparison)
@@ -236,6 +241,7 @@ src/
   prompts.js      all prompts, the LaTeX vocabulary, output parsing/normalising
   openrouter.js   OpenRouter client (retries, token-budget doubling, usage/cost)
   latex.js        document assembly, xelatex runner, log → readable errors
+  sources.js      teacher material (PDF text / vision transcription) → sources.md
   config.js       languages, labels, brands, level parsing, .env loading
 templates/wb.sty  the workbook style (layout, boxes, visuals, cover)
 brands/           brand JSON files

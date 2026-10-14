@@ -20,12 +20,14 @@ Options:
   --units <n>          Number of units                               (default: 4)
   --audience <text>    Age/grade, e.g. "3.º de primaria" (default: inferred by the model)
   --notes <text>       Extra instructions for the author model
+  --source <file>      Teacher material to base the book on: PDF or image (repeatable)
   --model <id>         OpenRouter model (default: $OPENROUTER_MODEL or ${DEFAULT_MODEL})
   --max-tokens <n>     Starting output-token budget per call (doubles if cut off; default 32000)
   --concurrency <n>    Units written in parallel                     (default: 2)
   --no-review          Skip the math/answer-key review pass
   --out <dir>          Output folder (default: output/<subject>-<level>-<lang>)
   --plan-only          Only create plan.json, to review/edit it before writing units
+  --plan-feedback <text>  Revise the saved plan.json following teacher feedback
   --redo <list>        Rewrite these units from scratch, e.g. --redo 2,4
   --revise "<n>: <feedback>"   Revise a saved unit following teacher feedback
                        (repeatable), e.g. --revise "2: más ejemplos con dinero"
@@ -42,10 +44,10 @@ const { values: v } = parseArgs({
     lang: { type: 'string', default: 'es_MX' }, brand: { type: 'string', default: 'Miss Merab' },
     logo: { type: 'string' }, primary: { type: 'string' }, secondary: { type: 'string' },
     accent: { type: 'string' }, paper: { type: 'string' },
-    units: { type: 'string', default: '4' }, audience: { type: 'string' }, notes: { type: 'string' },
+    units: { type: 'string', default: '4' }, audience: { type: 'string' }, notes: { type: 'string' }, source: { type: 'string', multiple: true, default: [] },
     model: { type: 'string' }, 'max-tokens': { type: 'string', default: '32000' },
     concurrency: { type: 'string', default: '2' }, review: { type: 'boolean', default: true },
-    out: { type: 'string' }, 'plan-only': { type: 'boolean' }, redo: { type: 'string', default: '' },
+    out: { type: 'string' }, 'plan-only': { type: 'boolean' }, 'plan-feedback': { type: 'string' }, redo: { type: 'string', default: '' },
     revise: { type: 'string', multiple: true, default: [] },
     force: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
   },
@@ -79,12 +81,14 @@ try {
   await generate({
     subject: v.subject, level, lang, brand, units,
     audience: v.audience, notes: v.notes,
+    sourceFiles: v.source.map((f) => path.resolve(f)),
     model: v.model || process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
     maxTokens: Number(v['max-tokens']),
     concurrency: Math.max(1, Number(v.concurrency)),
     review: v.review,
     runDir: path.resolve(v.out || path.join(ROOT, 'output', slug)),
     planOnly: v['plan-only'],
+    planFeedback: v['plan-feedback'],
     redo: v.redo.split(',').filter(Boolean).map(Number),
     revise: parseRevise(v.revise),
     force: v.force,
