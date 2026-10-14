@@ -28,7 +28,9 @@ only LaTeX commands you may use, and the two-block unit file format with the ans
   (e.g. `wb progreso "Escribiendo la unidad 2 de 4: Comparar fracciones"`). Do it at every step: she is
   watching a progress line on her screen.
 
-You have no internet access and must not edit anything outside this folder, nor the LaTeX template.
+Everything you need is in `wb guide` and this file: do not read the generator's source code or the LaTeX
+template (the commands in the guide are all defined and tested), and do not edit anything outside this
+folder. You have no internet access. Write each unit file in one go, then iterate with `wb check`.
 
 ## Phase "plan"  (`workbook.json` → `"phase": "plan"`)
 
