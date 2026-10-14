@@ -1,7 +1,7 @@
 // Prompts del generador. Se escriben en inglés (los modelos siguen mejor las
 // instrucciones así); el contenido del cuadernillo sale en el idioma pedido.
 
-const PEDAGOGY = `Pedagogy rules (strict):
+export const PEDAGOGY = `Pedagogy rules (strict):
 - Use only explanation strategies that are well documented and widely used in mathematics/subject education for this age group — e.g. concrete–pictorial–abstract (Bruner; Singapore math), fraction strips/bars, area (pie and rectangle) models, number lines, equal-sharing story problems (Cognitively Guided Instruction), bar models, worked examples followed by faded practice, retrieval practice and spaced review.
 - Do NOT invent new methods, mnemonics, rules or tricks that are not in common classroom use. If a tip is a known classroom device (e.g. "denominator = how many equal parts"), it is fine.
 - Never cite papers, books or authors in the student text.
@@ -19,6 +19,25 @@ The teacher provided her own source material (transcribed below). Base the workb
 ${sources}
 </teacher_material>`;
 }
+
+export const PLAN_SCHEMA = `{
+  "title": "workbook title (short, in the workbook language)",
+  "subtitle": "one line describing what the student will learn",
+  "audience": { "age": "e.g. 8–9", "grade": "school grade in the local system", "rationale": "one sentence (English)" },
+  "series": [ { "book": 1, "focus": "what that book covers (English)" } ],
+  "intro": { "title": "heading for a short welcome page", "text": "3–5 short sentences addressed to the student, plain text, no LaTeX" },
+  "units": [
+    {
+      "title": "unit title, without \"Unit N:\" (numbering is added automatically)",
+      "summary": "1–2 sentences addressed to the student, plain text",
+      "objectives": ["what the student will be able to do"],
+      "lessons": [
+        { "title": "lesson title, without \"Lesson N:\"", "goal": "what is learned (English)", "approach": "the documented teaching approach used (English)", "visuals": "which visual models to use (English)" }
+      ],
+      "review_focus": "what the unit review assesses (English)"
+    }
+  ]
+}`;
 
 export function planMessages({ subject, level, lang, units, audience, notes, sources }) {
   const series = level.of
@@ -42,24 +61,7 @@ ${notes ? `Author notes: ${notes}\n` : ''}
 Each unit will have 2–4 lessons. Each lesson has an explanation, a key-idea box, worked examples, and a practice set; each unit ends with a review quiz. Visual models (fraction bars, circles, grids, number lines, or simple TikZ diagrams) should be used wherever they help understanding.
 
 Respond with ONLY a JSON object, no prose, in this exact shape:
-{
-  "title": "workbook title (short, in the workbook language)",
-  "subtitle": "one line describing what the student will learn",
-  "audience": { "age": "e.g. 8–9", "grade": "school grade in the local system", "rationale": "one sentence (English)" },
-  "series": [ { "book": 1, "focus": "what that book covers (English)" } ],
-  "intro": { "title": "heading for a short welcome page", "text": "3–5 short sentences addressed to the student, plain text, no LaTeX" },
-  "units": [
-    {
-      "title": "unit title, without \"Unit N:\" (numbering is added automatically)",
-      "summary": "1–2 sentences addressed to the student, plain text",
-      "objectives": ["what the student will be able to do"],
-      "lessons": [
-        { "title": "lesson title, without \"Lesson N:\"", "goal": "what is learned (English)", "approach": "the documented teaching approach used (English)", "visuals": "which visual models to use (English)" }
-      ],
-      "review_focus": "what the unit review assesses (English)"
-    }
-  ]
-}${sourceBlock(sources)}`,
+${PLAN_SCHEMA}${sourceBlock(sources)}`,
     },
   ];
 }
@@ -114,7 +116,7 @@ For other diagrams, write a small self-contained \begin{tikzpicture}...\end{tikz
 Math: always in $...$ or \[...\]. Fractions with \frac{a}{b}; mixed numbers like $1\frac{1}{2}$. Never write fractions as a/b in text.
 Plain text: escape % & # _ $ as \% \& \# \_ \$. Use real UTF-8 characters for accents (á, ñ, ¿, ¡). Use \textbf / \emph for emphasis. No Markdown.`;
 
-const OUTPUT_FORMAT = String.raw`Output format — exactly two blocks, nothing before or after, no code fences:
+export const OUTPUT_FORMAT = String.raw`Output format — exactly two blocks, nothing before or after, no code fences:
 %%% BEGIN UNIT
 ...the unit LaTeX...
 %%% END UNIT

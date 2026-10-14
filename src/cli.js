@@ -3,6 +3,18 @@ import { parseArgs } from 'node:util';
 import path from 'node:path';
 import { ROOT, DEFAULT_MODEL, loadEnv, resolveLang, parseLevel, loadBrand, slugify } from './config.js';
 import { generate } from './generate.js';
+import { AGENT_COMMANDS, runAgentCommand } from './agent.js';
+
+// Modo agente: `node src/cli.js check 2` etc., desde la carpeta de trabajo (ver src/agent.js).
+if (AGENT_COMMANDS.includes(process.argv[2])) {
+  try {
+    await runAgentCommand(process.argv[2], process.argv.slice(3));
+  } catch (err) {
+    console.error(`✗ ${err.message}`);
+    process.exitCode = 1;
+  }
+  process.exit();
+}
 
 const HELP = `Workbook Generator — subject + level → branded LaTeX/PDF workbook
 
@@ -35,7 +47,10 @@ Options:
   -h, --help
 
 Re-running with the same options reuses the saved plan and units, so you can
-edit output/.../plan.json or units/unit-N.tex by hand and just rebuild.`;
+edit output/.../plan.json or units/unit-N.tex by hand and just rebuild.
+
+Agent mode (run inside a folder with workbook.json; see agent/CLAUDE.md):
+  node src/cli.js guide | sources | check <n> | build | render <pages> [--unit n] | progreso "<text>"`;
 
 const { values: v } = parseArgs({
   allowNegative: true,
