@@ -1,0 +1,289 @@
+% wb.sty — estilo de cuadernillo (Workbook Generator)
+% Lo carga main.tex después de definir:
+%   colores  wbprimary, wbsecondary, wbaccent, wbpaper
+%   macros   \wbBrandName \wbFontDir \wbLogo (vacío si no hay logo)
+%            \wbL<Etiqueta> (textos de interfaz en el idioma del cuadernillo)
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{wb}[2026/10/13 Workbook Generator]
+
+\RequirePackage{geometry}
+\geometry{letterpaper, top=2.2cm, bottom=2.4cm, left=2.2cm, right=2.2cm, headheight=16pt}
+\RequirePackage{fontspec}
+\RequirePackage{amsmath,amssymb}
+\RequirePackage{xcolor}
+\RequirePackage{graphicx}
+\RequirePackage{tikz}
+\usetikzlibrary{calc,positioning,shapes.geometric,arrows.meta,decorations.pathreplacing}
+\RequirePackage[most]{tcolorbox}
+\RequirePackage{enumitem}
+\RequirePackage{titlesec}
+\RequirePackage{titletoc}
+\RequirePackage{fancyhdr}
+\RequirePackage{multicol}
+\RequirePackage{needspace}
+\RequirePackage{array}
+\RequirePackage[hidelinks]{hyperref}
+
+% ---------- Tipografía ----------
+\setmainfont{AtkinsonHyperlegibleNext}[
+  Extension=.otf, UprightFont=*-Regular, BoldFont=*-Bold,
+  ItalicFont=*-RegularItalic, BoldItalicFont=*-BoldItalic]
+\newfontfamily\wbdisplay{BigShouldersDisplay-800.ttf}[Path=\wbFontDir, BoldFont=BigShouldersDisplay-800.ttf]
+\newfontfamily\wbdisplaybold{BigShouldersDisplay-700.ttf}[Path=\wbFontDir]
+% Cifras y letras de las fórmulas con la misma letra del texto (más legible para niños)
+\DeclareSymbolFont{wbtext}{TU}{\familydefault}{m}{n}
+\DeclareSymbolFont{wbtextit}{TU}{\familydefault}{m}{it}
+\SetSymbolFont{wbtext}{bold}{TU}{\familydefault}{b}{n}
+\AtBeginDocument{%
+  \count@=`0 \loop\ifnum\count@<`:\relax \Umathcode\count@="7 \symwbtext \count@ \advance\count@ 1 \repeat
+  \count@=`a \loop\ifnum\count@<`\{\relax \Umathcode\count@="7 \symwbtextit \count@ \advance\count@ 1 \repeat
+  \count@=`A \loop\ifnum\count@<`[\relax \Umathcode\count@="7 \symwbtextit \count@ \advance\count@ 1 \repeat}
+\linespread{1.18}
+\raggedbottom
+\clubpenalty=10000 \widowpenalty=10000 \displaywidowpenalty=10000
+\newcommand{\wbnohyph}{\hyphenpenalty=10000 \exhyphenpenalty=10000 \raggedright}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\everymath{\displaystyle}  % fracciones grandes y legibles también en línea
+
+% ---------- Títulos ----------
+\setcounter{secnumdepth}{2}
+\newcounter{wbunit}
+\renewcommand{\thesection}{\arabic{wbunit}.\arabic{section}}
+\titleformat{\section}
+  {\wbdisplaybold\LARGE\color{wbprimary}\wbnohyph}
+  {\colorbox{wbaccent}{\color{wbprimary}\,\thesection\,}}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.4em}{0.6em}
+\titleformat{\subsection}
+  {\bfseries\large\color{wbsecondary}\wbnohyph}{}{0pt}{}
+\titlespacing*{\subsection}{0pt}{1em}{0.3em}
+
+% Índice: unidades (part), lecciones (section), repaso (subsection)
+\titlecontents{part}[0pt]{\addvspace{0.6em}\bfseries\color{wbprimary}}{}{}{\hfill\contentspage}
+\titlecontents{section}[3.2em]{\small}{\contentslabel{2.4em}}{}{\titlerule*[0.6pc]{.}\contentspage}
+\titlecontents{subsection}[3.2em]{\small\color{wbsecondary}}{}{}{\titlerule*[0.6pc]{.}\contentspage}
+
+% \wbunit{Título}{Resumen de la unidad}
+\newcommand{\wbunit}[2]{%
+  \clearpage
+  \stepcounter{wbunit}\setcounter{section}{0}\setcounter{wbpracticectr}{0}%
+  \gdef\wbCurrentUnit{\wbLUnit\ \arabic{wbunit}: #1}%
+  \addcontentsline{toc}{part}{\wbLUnit\ \arabic{wbunit}\quad #1}%
+  \thispagestyle{wbplain}%
+  \begin{tikzpicture}[remember picture, overlay]
+    \fill[wbprimary] (current page.north west) rectangle ([yshift=-7.2cm]current page.north east);
+    \fill[wbaccent] ([yshift=-7.2cm]current page.north west) rectangle ([yshift=-7.5cm]current page.north east);
+    \node[anchor=north west, text=wbaccent, font=\wbdisplaybold\Large]
+      at ([xshift=2.2cm, yshift=-1.6cm]current page.north west) {\MakeUppercase{\wbLUnit}};
+    \node[anchor=north west, inner sep=0pt, text=wbaccent, font=\wbdisplay\fontsize{110}{110}\selectfont] (wbnum)
+      at ([xshift=2.1cm, yshift=-2.5cm]current page.north west) {\arabic{wbunit}};
+    \node[anchor=west, text=white, text width=13cm, align=flush left, font=\wbdisplay\fontsize{36}{38}\selectfont]
+      at ([xshift=1cm]wbnum.east) {#1};
+  \end{tikzpicture}\par
+  \vspace*{5.4cm}%
+  {\large #2\par}\medskip
+}
+
+% ---------- Encabezado y pie ----------
+\def\wbCurrentUnit{}
+\fancypagestyle{wbmain}{%
+  \fancyhf{}%
+  \renewcommand{\headrulewidth}{0pt}%
+  \fancyhead[L]{\small\color{wbsecondary}\wbCurrentUnit}%
+  \fancyhead[R]{\small\color{wbsecondary}\bfseries\wbBrandName}%
+  \fancyfoot[C]{\tikz\node[circle, fill=wbprimary, text=white, inner sep=2pt, minimum size=18pt, font=\small\bfseries]{\thepage};}%
+}
+\fancypagestyle{wbplain}{%
+  \fancyhf{}\renewcommand{\headrulewidth}{0pt}%
+  \fancyfoot[C]{\tikz\node[circle, fill=wbprimary, text=white, inner sep=2pt, minimum size=18pt, font=\small\bfseries]{\thepage};}%
+}
+\pagestyle{wbmain}
+
+% ---------- Cajas ----------
+\tcbset{wbbase/.style={enhanced, sharp corners=south, arc=3mm,
+  boxrule=0pt, left=4mm, right=4mm, top=2.5mm, bottom=2.5mm,
+  fonttitle=\bfseries, before skip=0.9em, after skip=0.9em}}
+
+% Las cajas cortas (idea, ejemplo, truco) no se parten; práctica y repaso sí,
+% pero sólo entre reactivos (ver \wbkeepitems).
+\tcbset{wbbreak/.style={breakable, before skip=0.9em}}
+
+% Idea clave
+\newtcolorbox{wbidea}[1][]{wbbase, colback=wbaccent!18, colframe=wbaccent,
+  borderline west={1.5mm}{0pt}{wbaccent},
+  title={\wbLKeyIdea\ifx\relax#1\relax\else: #1\fi}, coltitle=wbprimary,
+  attach boxed title to top left={yshift=-2.2mm, xshift=4mm},
+  boxed title style={colback=wbaccent, arc=2mm, boxrule=0pt}}
+
+% Ejemplo resuelto
+\newcounter{wbexamplectr}[wbunit]
+\newtcolorbox{wbexample}[1][]{wbbase, colback=wbpaper, colframe=wbsecondary,
+  borderline west={1.5mm}{0pt}{wbsecondary},
+  before upper={\stepcounter{wbexamplectr}},
+  title={\wbLExample\ifx\relax#1\relax\else: #1\fi}, coltitle=white,
+  attach boxed title to top left={yshift=-2.2mm, xshift=4mm},
+  boxed title style={colback=wbsecondary, arc=2mm, boxrule=0pt}}
+
+% Consejo / truco
+\newtcolorbox{wbtip}[1][]{wbbase, colback=white, colframe=wbaccent,
+  boxrule=0.6pt, arc=3mm,
+  title={\wbLTip\ifx\relax#1\relax\else: #1\fi}, coltitle=wbprimary, colbacktitle=white,
+  attach boxed title to top left={yshift=-2.2mm, xshift=4mm},
+  boxed title style={colback=white, colframe=wbaccent, boxrule=0.6pt, arc=2mm}}
+
+% ---------- Reactivos indivisibles ----------
+% Dentro de práctica/repaso, cada \item del primer nivel se envuelve en una minipage.
+% Un \item "hermano" se reconoce porque aparece en el mismo nivel de grupo que la
+% minipage abierta; los \item de listas anidadas siguen siendo normales.
+\newif\ifwb@initem
+\def\wb@level{-1}
+\newcommand{\wbkeepitems}{%
+  \let\wb@origitem\item
+  \let\wb@origendenumerate\endenumerate
+  \let\wb@origenditemize\enditemize
+  \def\item{\let\wb@next\wb@nextitem
+    \ifwb@initem\ifnum\currentgrouplevel=\wb@level\relax\else\let\wb@next\wb@origitem\fi\fi
+    \wb@next}%
+  \def\endenumerate{\wb@closeitem\wb@origendenumerate}%
+  \def\enditemize{\wb@closeitem\wb@origenditemize}%
+}
+\def\wb@closeitem{\ifwb@initem\ifnum\currentgrouplevel=\wb@level\relax\end{minipage}\fi\fi}
+\def\wb@nextitem{\wb@closeitem\@ifnextchar[\wb@itemopt\wb@itemnoopt}
+\def\wb@itemopt[#1]{\wb@origitem[#1]\wb@openitem}
+\def\wb@itemnoopt{\wb@origitem\wb@openitem}
+\def\wb@openitem{\wb@initemtrue
+  \begin{minipage}[t]{\linewidth}\edef\wb@level{\the\currentgrouplevel}%
+  \setlength{\parskip}{0.45em}\ignorespaces}
+
+% Práctica: numerada automáticamente <unidad>.<k>
+\newcounter{wbpracticectr}
+\newtcolorbox{wbpractice}[1][]{wbbase, wbbreak, colback=white, colframe=wbprimary, boxrule=0.8pt, arc=3mm,
+  before upper={\setlist[enumerate,1]{label=\textbf{\arabic*.}, leftmargin=*, itemsep=0.9em}\wbkeepitems},
+  code={\stepcounter{wbpracticectr}},
+  title={\wbLPractice\ \arabic{wbunit}.\arabic{wbpracticectr}\ifx\relax#1\relax\else\ --- #1\fi},
+  coltitle=white,
+  attach boxed title to top left={yshift=-2.2mm, xshift=4mm},
+  boxed title style={colback=wbprimary, arc=2mm, boxrule=0pt}}
+
+% Repaso de la unidad
+\newenvironment{wbreview}{%
+  \needspace{14\baselineskip}%
+  \section*{\wbLReview}\addcontentsline{toc}{subsection}{\wbLReview}%
+  \begin{tcolorbox}[wbbase, wbbreak, colback=wbaccent!10, colframe=wbaccent, boxrule=1pt, arc=3mm,
+     before upper={\setlist[enumerate,1]{label=\textbf{\arabic*.}, leftmargin=*, itemsep=1em}\wbkeepitems}]%
+}{\end{tcolorbox}}
+
+% ---------- Espacio para responder ----------
+% \wblines{n}: n renglones para escribir
+\newcommand{\wblines}[1]{\par\nobreak\vspace{0.2em}%
+  \foreach \i in {1,...,#1}{\noindent\textcolor{wbsecondary!45}{\rule{\linewidth}{0.4pt}}\par\vspace{0.75em}}}
+% \wbblank: espacio corto para completar en línea
+% (dentro de una fórmula, p.ej. \frac{\wbblank}{4}, se vuelve un recuadro para no confundirse con la raya)
+\newcommand{\wbblank}[1][2.2cm]{\ifmmode\boxed{\phantom{00}}\else\underline{\hspace{#1}}\fi}
+% \wbbox[alto]: recuadro libre para operaciones o dibujos
+\newcommand{\wbbox}[1][3cm]{\par\noindent\tikz\draw[wbsecondary!50, rounded corners=2mm, dashed] (0,0) rectangle (\linewidth,#1);\par}
+% \wbfracbox: recuadro de fracción para llenar numerador y denominador
+\newcommand{\wbfracbox}{\ensuremath{\dfrac{\boxed{\phantom{00}}}{\boxed{\phantom{00}}}}}
+
+% ---------- Visuales de fracciones ----------
+% \wbfracbar[ancho]{n}{d}: barra en d partes iguales con n coloreadas
+\newcommand{\wbfracbar}[3][6cm]{%
+  \begin{tikzpicture}[baseline={(0,0.25)}]
+    \pgfmathsetmacro{\wbw}{#1/#3}
+    \foreach \k in {1,...,#3}{%
+      \pgfmathsetmacro{\wbx}{(\k-1)*\wbw}
+      \ifnum\k>#2\relax \def\wbfill{white}\else \def\wbfill{wbaccent}\fi
+      \filldraw[fill=\wbfill, draw=wbprimary, line width=0.8pt] (\wbx pt,0) rectangle ++(\wbw pt,0.55cm);}
+  \end{tikzpicture}}
+% \wbfraccircle[radio]{n}{d}: círculo (pastel) en d partes con n coloreadas
+\newcommand{\wbfraccircle}[3][1.1cm]{%
+  \begin{tikzpicture}[baseline={(0,0)}]
+    \pgfmathsetmacro{\wba}{360/#3}
+    \ifnum#3=1\relax
+      \ifnum#2>0\relax \fill[wbaccent] (0,0) circle (#1);\fi
+    \else
+      \foreach \k in {1,...,#3}{%
+        \ifnum\k>#2\relax \def\wbfill{white}\else \def\wbfill{wbaccent}\fi
+        \filldraw[fill=\wbfill, draw=wbprimary, line width=0.8pt]
+          (0,0) -- ({90-(\k-1)*\wba}:#1) arc[start angle={90-(\k-1)*\wba}, end angle={90-\k*\wba}, radius=#1] -- cycle;}
+    \fi
+    \draw[wbprimary, line width=0.8pt] (0,0) circle (#1);
+  \end{tikzpicture}}
+% \wbfracgrid{n}{filas}{columnas}: rectángulo en cuadrícula con n celdas coloreadas
+\newcommand{\wbfracgrid}[3]{%
+  \begin{tikzpicture}[baseline={(0,0.3)}, x=0.6cm, y=0.6cm]
+    \foreach \r in {1,...,#2}{\foreach \c in {1,...,#3}{%
+      \pgfmathtruncatemacro{\wbidx}{(\r-1)*#3+\c}
+      \ifnum\wbidx>#1\relax \def\wbfill{white}\else \def\wbfill{wbaccent}\fi
+      \filldraw[fill=\wbfill, draw=wbprimary, line width=0.7pt] (\c-1,#2-\r) rectangle ++(1,1);}}
+  \end{tikzpicture}}
+% \wbnumberline[ancho]{d}{enteros}{marcas}: recta numérica de 0 a <enteros>,
+% dividida en d partes por unidad; <marcas> = numeradores a señalar, p.ej. {3,5} (vacío = ninguna)
+\newcommand{\wbnumberline}[4][12cm]{%
+  \begin{tikzpicture}[baseline={(0,0)}]
+    \pgfmathsetmacro{\wbu}{#1/#3}
+    \pgfmathtruncatemacro{\wbn}{#2*#3}
+    \draw[wbprimary, line width=1pt, -{Stealth[length=3mm]}] (0,0) -- (#1+0.6cm,0);
+    \foreach \k in {0,...,\wbn}{%
+      \pgfmathsetmacro{\wbx}{\k*\wbu/#2}
+      \pgfmathtruncatemacro{\wbwhole}{mod(\k,#2)==0}
+      \ifnum\wbwhole=1\relax
+        \pgfmathtruncatemacro{\wbint}{\k/#2}
+        \draw[wbprimary, line width=1pt] (\wbx pt,-0.22) -- (\wbx pt,0.22) node[below=9pt, font=\bfseries] {\wbint};
+      \else
+        \draw[wbprimary] (\wbx pt,-0.13) -- (\wbx pt,0.13);
+      \fi}
+    \edef\wbmarks{#4}
+    \ifx\wbmarks\empty\else
+      \foreach \m in \wbmarks{%
+        \pgfmathsetmacro{\wbx}{\m*\wbu/#2}
+        \fill[wbaccent, draw=wbprimary] (\wbx pt,0) circle (3.5pt);
+        \node[above=4pt, font=\small] at (\wbx pt,0) {$\frac{\m}{#2}$};}
+    \fi
+  \end{tikzpicture}}
+
+% ---------- Respuestas ----------
+% \wbanswers{1.3}: encabezado de las respuestas de la Práctica 1.3 (o "Repaso 1")
+\newcommand{\wbanswers}[1]{\par\needspace{4\baselineskip}\textbf{\color{wbprimary}#1}\par\nobreak}
+\newenvironment{wbanswerkey}{%
+  \clearpage\gdef\wbCurrentUnit{\wbLAnswers}%
+  \addcontentsline{toc}{part}{\wbLAnswers}%
+  {\wbdisplay\fontsize{34}{36}\selectfont\color{wbprimary}\wbLAnswers\par}\bigskip
+  \small\setlength{\parskip}{0.3em}
+  \setlist[enumerate,1]{label=\textbf{\arabic*.}, leftmargin=*, itemsep=0.15em, topsep=0.2em}
+  \begin{multicols}{2}\raggedcolumns}
+ {\end{multicols}}
+\newcommand{\wbanswerunit}[1]{\needspace{5\baselineskip}%
+  \subsection*{\color{wbprimary}\wbnohyph #1}}
+
+% ---------- Portada ----------
+% \wbcover{Título}{Subtítulo}{Nivel}
+\newcommand{\wbcover}[3]{%
+  \thispagestyle{empty}
+  \begin{tikzpicture}[remember picture, overlay]
+    \fill[wbprimary] (current page.south west) rectangle (current page.north east);
+    \foreach \r/\o in {9/0.06, 6.5/0.08, 4/0.12}{\fill[wbaccent, opacity=\o]
+      ([xshift=-1.5cm, yshift=7cm]current page.south east) circle (\r cm);}
+    \fill[wbaccent] ([yshift=5.2cm]current page.south west) rectangle ([yshift=5.6cm]current page.south east);
+    \node[anchor=north west, text=wbaccent, font=\wbdisplaybold\Large]
+      at ([xshift=2.2cm, yshift=-2.4cm]current page.north west) {\MakeUppercase{#3}};
+    \node[anchor=north west, text=white, text width=16cm, align=flush left, font=\wbdisplay\fontsize{58}{58}\selectfont]
+      at ([xshift=2.1cm, yshift=-3.6cm]current page.north west) {#1};
+    \node[anchor=north west, text=white!85!wbprimary, text width=15cm, align=left, font=\Large]
+      at ([xshift=2.2cm, yshift=-11.2cm]current page.north west) {#2};
+    \node[anchor=south west, text=white, font=\wbdisplaybold\fontsize{30}{30}\selectfont]
+      at ([xshift=2.2cm, yshift=2.2cm]current page.south west) {\wbBrandName};
+    \ifx\wbLogo\empty\else
+      \node[anchor=south east] at ([xshift=-2.2cm, yshift=1.6cm]current page.south east)
+        {\includegraphics[height=2.6cm]{\wbLogo}};
+    \fi
+  \end{tikzpicture}
+  \clearpage}
+
+% Hoja "Nombre / Grupo" + presentación
+\newcommand{\wbnameline}{%
+  \begin{tcolorbox}[wbbase, colback=wbpaper, colframe=wbpaper]
+    \textbf{\wbLName:}\ \wbblank[9cm]\hfill\textbf{\wbLGroup:}\ \wbblank[2.5cm]
+  \end{tcolorbox}}
+
+\endinput

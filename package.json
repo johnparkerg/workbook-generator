@@ -1,0 +1,38 @@
+{
+  "name": "workbook-generator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Subject + level → branded LaTeX/PDF student workbook, written by an LLM via OpenRouter",
+  "bin": {
+    "workbook": "src/cli.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "generate": "node src/cli.js",
+    "example": "node src/cli.js --subject \"Matemáticas / Fracciones\" --level \"1 of 3\" --lang es_MX --brand miss-merab",
+    "test": "node --test test/*.test.js"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/johnparkerg/workbook-generator.git"
+  },
+  "keywords": [
+    "latex",
+    "workbook",
+    "education",
+    "llm",
+    "openrouter",
+    "worksheet",
+    "math"
+  ],
+  "files": [
+    "src",
+    "templates",
+    "brands",
+    "fonts"
+  ]
+}
