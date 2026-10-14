@@ -10,13 +10,13 @@ const MAX_TOKENS_CAP = 128000;
  * Una llamada de chat a OpenRouter. Reintenta en 429/5xx y fallas de red.
  * Devuelve el texto de la respuesta.
  */
-export async function chat({ model, messages, maxTokens = 32000, temperature = 0.4, label = 'llm' }) {
+export async function chat({ model, messages, maxTokens = 32000, maxTokensCap = MAX_TOKENS_CAP, temperature = 0.4, reasoning, label = 'llm' }) {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error('OPENROUTER_API_KEY is missing. Add it to workbook-generator/.env');
 
   let lastErr;
   for (let attempt = 1; attempt <= 4; attempt++) {
-    const body = JSON.stringify({ model, messages, max_tokens: maxTokens, temperature, usage: { include: true } });
+    const body = JSON.stringify({ model, messages, max_tokens: maxTokens, temperature, usage: { include: true }, ...(reasoning ? { reasoning } : {}) });
     try {
       const res = await fetch(URL, {
         method: 'POST',
@@ -41,9 +41,9 @@ export async function chat({ model, messages, maxTokens = 32000, temperature = 0
       const content = choice?.message?.content;
       if (choice?.finish_reason === 'length') {
         lastErr = new Error(`response cut off at max_tokens=${maxTokens}`);
-        if (maxTokens >= MAX_TOKENS_CAP) break;
-        console.warn(`  [${label}] response cut off at ${maxTokens} tokens — retrying with ${Math.min(maxTokens * 2, MAX_TOKENS_CAP)}`);
-        maxTokens = Math.min(maxTokens * 2, MAX_TOKENS_CAP);
+        if (maxTokens >= maxTokensCap) break;
+        console.warn(`  [${label}] response cut off at ${maxTokens} tokens — retrying with ${Math.min(maxTokens * 2, maxTokensCap)}`);
+        maxTokens = Math.min(maxTokens * 2, maxTokensCap);
         continue;
       }
       if (!content) throw Object.assign(new Error(`Empty response (finish_reason=${choice?.finish_reason})`), { retry: true });

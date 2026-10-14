@@ -87,3 +87,11 @@ test('full workbook (cover, contents, answers) compiles with and without a logo'
     assert.equal(res.ok, true, res.errors);
   }
 });
+
+test('a broken LaTeX environment is reported as such, not as a document error', async () => {
+  const res = await compile('\\documentclass{article}\\usepackage{definitely-not-a-real-package-xyz}\\begin{document}x\\end{document}',
+    path.join(tmpdir(), 'wb-test-env'), { name: 'e' });
+  // un paquete inexistente sí es error del documento (hay línea "! …")
+  assert.equal(res.ok, false);
+  assert.equal(res.environment, false);
+});

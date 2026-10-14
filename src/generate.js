@@ -122,7 +122,8 @@ async function getUnit(opts, plan, i) {
   if (opts.review) {
     log(`[${tag}] reviewing math and answer key…`);
     try {
-      const text = await chat({ model: opts.model, messages: reviewMessages({ output: formatOutput(unit), lang: opts.lang, plan }), maxTokens: opts.maxTokens, label: `${tag} review` });
+      // Esfuerzo de razonamiento acotado: sin tope, el router llegó a pensar 10 minutos en esta revisión.
+      const text = await chat({ model: opts.model, messages: reviewMessages({ output: formatOutput(unit), lang: opts.lang, plan }), maxTokens: opts.maxTokens, maxTokensCap: 64000, reasoning: { effort: 'medium' }, label: `${tag} review` });
       if (/^\s*NO_CHANGES\s*$/.test(text)) {
         log(`[${tag}] review: no changes`);
       } else {
@@ -161,6 +162,7 @@ async function compileChecked(opts, n, unit) {
   for (let attempt = 0; ; attempt++) {
     const res = await compile(unitTestDocument({ brand: opts.brand, lang: opts.lang, unitNumber: n, unitLatex: unit.latex, answersLatex: unit.answers }), buildDir, { name: `unit-${n}`, passes: 2 });
     if (res.ok) return unit;
+    if (res.environment) throw new Error(`[${tag}] LaTeX could not run (environment problem, not the unit):\n${res.errors}`);
     if (attempt === MAX_FIXES) {
       await writeFile(path.join(opts.runDir, 'units', `unit-${n}.failed.tex`), formatOutput(unit));
       throw new Error(`[${tag}] still fails to compile after ${MAX_FIXES} fixes. Last errors:\n${res.errors}`);

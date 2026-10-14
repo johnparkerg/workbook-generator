@@ -109,7 +109,10 @@ export async function compile(source, dir, { name = 'main', passes = 1 } = {}) {
   const pdf = path.join(dir, `${name}.pdf`);
   if (res.code === 0 && existsSync(pdf)) return { ok: true, pdf, errors: '' };
   const log = existsSync(logFile) ? await readFile(logFile, 'utf8') : res.out;
-  return { ok: false, pdf: null, errors: extractErrors(log, source) };
+  // Sin líneas de error de LaTeX ("! …" o "archivo.tex:N: …") el problema es del entorno
+  // (xelatex sin formato, paquete de sistema ausente…), no del documento: no tiene caso pedirle al modelo que lo arregle.
+  const documentError = /^(?:! |\S*\.tex:\d+: )/m.test(log);
+  return { ok: false, pdf: null, errors: documentError ? extractErrors(log, source) : `${res.out}\n${log}`.trim().split('\n').slice(-25).join('\n'), environment: !documentError };
 }
 
 /** Saca del log de LaTeX los errores y la línea del .tex donde ocurrieron. */

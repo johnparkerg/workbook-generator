@@ -15,9 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install LaTeX (cached)
-        uses: awalsh128/cache-apt-pkgs-action@v1.4.3
-        with:
-          packages: texlive-xetex texlive-latex-extra texlive-pictures texlive-lang-spanish poppler-utils
-          version: 1
+      # Plain apt (not a cache action): cached .debs skip the postinst that builds xelatex.fmt.
+      - name: Install LaTeX
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends texlive-xetex texlive-latex-extra texlive-pictures texlive-lang-spanish poppler-utils > /dev/null
       - run: npm test
